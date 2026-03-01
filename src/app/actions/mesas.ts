@@ -3,56 +3,102 @@
 import { supabase } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
 
+// Actualizamos Abrir Mesa para iniciar el contador del primer chico
 export async function abrirMesa(formData: FormData) {
     const id = formData.get('id')
     const modalidad = formData.get('modalidad')
+    const ahora = new Date().toISOString()
+
     await supabase.from('mesas').update({
-        estado: 'ocupada', hora_inicio: new Date().toISOString(), modalidad, minutos_prepago: 0, chicos: [], consumos: []
+        estado: 'ocupada',
+        hora_inicio: ahora,
+        hora_ultimo_chico: ahora, // <-- NUEVO: Aquí inicia el cronómetro del chico
+        modalidad,
+        minutos_prepago: 0,
+        chicos: [],
+        consumos: []
     }).eq('id', id)
     revalidatePath('/dashboard')
 }
 
-export async function anotarChico(formData: FormData) {
-    const id = formData.get('id')
-    const perdedor = formData.get('perdedor')
-    const valor = parseInt(formData.get('valor')?.toString() || '0')
-    const chicosActuales = JSON.parse(formData.get('chicos_actuales')?.toString() || '[]')
+// Nueva función potente para Cerrar un Chico
+export async function terminarChico(
+    mesaId: string,
+    perdedor: string,
+    estadoPago: 'pagado' | 'pendiente',
+    metodoPago: string | null,
+    costoTiempo: number,
+    totalProductos: number,
+    productosConsumidos: any[]
+) {
+    const totalChico = costoTiempo + totalProductos
+    const ahora = new Date().toISOString()
+
+    // 1. Si paga de una vez, a la Caja
+    if (estadoPago === 'pagado' && metodoPago) {
+        await supabase.from('historial_ventas').insert([{
+            tipo: 'mesa',
+            descripcion: `Chico Pagado (Mesa): ${perdedor} - Tiempo + Consumos`,
+            total: totalChico,
+            metodo_pago: metodoPago
+        }])
+    }
+
+    // 2. Traer la mesa actual para no perder los chicos anteriores
+    const { data: mesa } = await supabase.from('mesas').select('chicos').eq('id', mesaId).single()
+    const historialChicos = mesa?.chicos || []
+
+    // 3. Crear el objeto del Chico Terminado
+    const nuevoChico = {
+        id: crypto.randomUUID(), // ID único para poder verlo después
+        perdedor,
+        hora: new Date().toLocaleTimeString(),
+        costoTiempo,
+        totalProductos,
+        total: totalChico,
+        productos: productosConsumidos, // Guardamos qué se comieron en ESTE chico
+        estadoPago
+    }
+
+    // 4. Actualizar Mesa: Guardamos el chico, BORRAMOS consumos actuales y REINICIAMOS el tiempo
     await supabase.from('mesas').update({
-        chicos: [...chicosActuales, { perdedor, valor, hora: new Date().toLocaleTimeString() }]
-    }).eq('id', id)
+        chicos: [...historialChicos, nuevoChico],
+        consumos: [], // Se limpia la mesa para el siguiente juego
+        hora_ultimo_chico: ahora // El tiempo arranca de cero para el siguiente
+    }).eq('id', mesaId)
+
     revalidatePath('/dashboard')
 }
 
-// NUEVA VERSIÓN: Conecta con inventario y estado de pago
+// ... Mantén las funciones agregarConsumoMesa y procesarCierreMesa (pero ojo, el cierre mesa ahora debe sumar los chicos pendientes)
 export async function agregarConsumoMesa(mesaId: string, productoId: string, nombre: string, cantidad: number, precio: number, estadoPago: 'pagado' | 'pendiente', metodoPago?: string, consumosActuales: any[] = []) {
     const total = cantidad * precio
 
-    // 1. Descontar del inventario
+    // Descontar Stock
     const { data: prod } = await supabase.from('productos').select('stock').eq('id', productoId).single()
     if (prod) {
         await supabase.from('productos').update({ stock: prod.stock - cantidad }).eq('id', productoId)
     }
 
-    // 2. Si lo pagó de inmediato, lo guardamos en la Caja Diaria
+    // Si paga YA, a caja. Si no, se suma a la mesa (al chico actual)
     if (estadoPago === 'pagado' && metodoPago) {
         await supabase.from('historial_ventas').insert([{
             tipo: 'mesa',
-            descripcion: `Pago Inmediato (Mesa): ${cantidad}x ${nombre}`,
+            descripcion: `Venta Mesa (Directa): ${cantidad}x ${nombre}`,
             total: total,
             metodo_pago: metodoPago
         }])
+    } else {
+        // Solo si NO está pagado se agrega a la lista visual de la mesa para cobrarlo en el chico
+        const nuevoConsumo = { productoId, nombre, cantidad, precio, total, estadoPago: 'pendiente', hora: new Date().toLocaleTimeString() }
+        await supabase.from('mesas').update({ consumos: [...consumosActuales, nuevoConsumo] }).eq('id', mesaId)
     }
-
-    // 3. Lo agregamos a la mesa (para que quede el registro)
-    const nuevoConsumo = { productoId, nombre, cantidad, total, estadoPago, hora: new Date().toLocaleTimeString() }
-    await supabase.from('mesas').update({ consumos: [...consumosActuales, nuevoConsumo] }).eq('id', mesaId)
 
     revalidatePath('/dashboard')
 }
 
-// NUEVA VERSIÓN: Cierre Total y Facturación
 export async function procesarCierreMesa(mesaId: string, descripcionTicket: string, granTotal: number, metodoPago: string) {
-    // 1. Guardar el Gran Total en la Caja Diaria
+    // Guardar en caja
     await supabase.from('historial_ventas').insert([{
         tipo: 'mesa',
         descripcion: descripcionTicket,
@@ -60,9 +106,9 @@ export async function procesarCierreMesa(mesaId: string, descripcionTicket: stri
         metodo_pago: metodoPago
     }])
 
-    // 2. Liberar la mesa
+    // Limpiar mesa
     await supabase.from('mesas').update({
-        estado: 'disponible', hora_inicio: null, modalidad: null, minutos_prepago: 0, chicos: [], consumos: []
+        estado: 'disponible', hora_inicio: null, hora_ultimo_chico: null, modality: null, minutos_prepago: 0, chicos: [], consumos: []
     }).eq('id', mesaId)
 
     revalidatePath('/dashboard')
