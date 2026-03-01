@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Clock, Coffee, Skull, Receipt, CheckCircle2, AlertCircle, Play, Zap, Search, Plus, Minus, Trash2, Info } from 'lucide-react'
-import { abrirMesa, anotarChico, agregarConsumoMesa, procesarCierreMesa, terminarChico } from '@/app/actions/mesas'
+import { abrirMesa, agregarConsumoMesa, procesarCierreMesa, terminarChico } from '@/app/actions/mesas'
 
 export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tarifas: any[], productos: any[] }) {
     const [minutosChicoActual, setMinutosChicoActual] = useState(0)
