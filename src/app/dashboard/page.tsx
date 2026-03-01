@@ -4,18 +4,17 @@ import MesaCard from '@/components/MesaCard'
 export const dynamic = 'force-dynamic'
 
 export default async function DashboardPage() {
-    // Traemos todo lo necesario en paralelo
     const { data: mesas } = await supabase.from('mesas').select('*').order('numero')
     const { data: tarifas } = await supabase.from('tarifas').select('*')
     const { data: productos } = await supabase.from('productos').select('*').gt('stock', 0).order('nombre')
 
     return (
         <div>
-            <div className="mb-8 flex justify-between items-end">
-                <div>
-                    <h1 className="text-3xl font-bold text-white flex items-center gap-3">Mesas Activas 🎱</h1>
-                    <p className="text-slate-400 mt-2">Administra tiempo, cobra exacto y despacha inventario.</p>
-                </div>
+            <div className="mb-8 border-b border-gray-200 pb-6">
+                <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                    Control de Mesas
+                </h1>
+                <p className="text-gray-500 mt-2">Selecciona una opción rápida para activar la mesa.</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

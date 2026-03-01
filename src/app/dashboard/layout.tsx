@@ -17,13 +17,10 @@ export default async function DashboardLayout({
     const usuario = JSON.parse(sessionCookie.value)
 
     return (
-        <div className="flex min-h-screen bg-slate-900">
-            {/* Pasamos el usuario al Sidebar para mostrar su nombre y rol */}
+        <div className="flex min-h-screen bg-gray-50 font-sans text-slate-900"> {/* CAMBIO AQUÍ */}
             <Sidebar usuario={usuario} />
-
-            {/* El contenido de la página irá aquí */}
-            <main className="flex-1 overflow-y-auto">
-                <div className="p-4 md:p-8">
+            <main className="flex-1 overflow-y-auto h-screen">
+                <div className="p-4 md:p-8 max-w-7xl mx-auto"> {/* Agregué max-w para que no se estire infinito en pantallas gigantes */}
                     {children}
                 </div>
             </main>
