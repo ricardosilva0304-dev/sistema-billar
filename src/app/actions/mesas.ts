@@ -114,3 +114,18 @@ export async function procesarCierreMesa(mesaId: string, descripcionTicket: stri
     revalidatePath('/dashboard')
     revalidatePath('/dashboard/historial')
 }
+
+// NUEVA FUNCIÓN: Cancelar mesa por error (Reset total)
+export async function cancelarMesa(id: string) {
+    await supabase.from('mesas').update({
+        estado: 'disponible',
+        hora_inicio: null,
+        hora_ultimo_chico: null,
+        modalidad: null,
+        minutos_prepago: 0,
+        chicos: [],
+        consumos: []
+    }).eq('id', id)
+
+    revalidatePath('/dashboard')
+}

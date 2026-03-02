@@ -1,10 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation' // Para refrescar los datos
+import { createClient } from '@supabase/supabase-js' // Cliente Realtime
 import { ShoppingCart, Plus, Minus, Trash2, Edit2, PackageSearch, Store, BookUser, Receipt, CheckCircle2, Search, X } from 'lucide-react'
 import { crearProducto, editarProducto, eliminarProducto, procesarVenta, crearCuentaAbierta, cobrarCuentaAbierta } from '@/app/actions/inventario'
 
+// Cliente Supabase Ligero
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
+
 export default function InventarioClient({ productosIniciales, cuentasIniciales }: { productosIniciales: any[], cuentasIniciales: any[] }) {
+    const router = useRouter() // Hook para actualizar la data visualmente
+
+    // --- LÓGICA DE TIEMPO REAL ---
+    useEffect(() => {
+        // 1. Escuchar cambios en el Inventario (Stock/Precios)
+        const channelProductos = supabase
+            .channel('realtime-productos')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'productos' }, () => {
+                router.refresh()
+            })
+            .subscribe()
+
+        // 2. Escuchar cambios en Cuentas/Fiados
+        const channelCuentas = supabase
+            .channel('realtime-cuentas')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'cuentas_abiertas' }, () => {
+                router.refresh()
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channelProductos)
+            supabase.removeChannel(channelCuentas)
+        }
+    }, [router])
+
+    // --- ESTADOS ---
     const [pestaña, setPestaña] = useState<'venta' | 'gestion' | 'cuentas'>('venta')
     const [carrito, setCarrito] = useState<any[]>([])
     const [productoEditando, setProductoEditando] = useState<any>(null)
@@ -25,6 +60,7 @@ export default function InventarioClient({ productosIniciales, cuentasIniciales 
         setCarrito((prev) => {
             const existe = prev.find((item) => item.id === producto.id)
             if (existe) {
+                // Validación visual de stock local (para no dejar agregar más de lo que hay)
                 if (existe.cantidad >= producto.stock) return prev
                 return prev.map((item) => item.id === producto.id ? { ...item, cantidad: item.cantidad + 1 } : item)
             }

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { Wallet, ArrowRightLeft, TrendingUp, Calendar, Receipt, CircleDollarSign, Smartphone, ChevronRight } from 'lucide-react'
+import { Wallet, ArrowRightLeft, TrendingUp, Calendar, Receipt, CircleDollarSign, Smartphone } from 'lucide-react'
+import RealtimeRefresher from '@/components/RealtimeRefresher' // <-- IMPORTANTE: Importamos el escuchador
 
 export const dynamic = 'force-dynamic'
 
@@ -22,7 +23,10 @@ export default async function HistorialPage() {
     const granTotal = totalEfectivo + totalTransferencia
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 pb-20 font-sans">
+
+            {/* COMPONENTE INVISIBLE PARA ACTUALIZAR DATOS EN VIVO */}
+            <RealtimeRefresher />
 
             {/* HEADER RESPONSIVO */}
             <div className="flex flex-col md:flex-row justify-between items-center md:items-end mb-8 border-b border-gray-100 pb-8 text-center md:text-left gap-4">
@@ -35,12 +39,12 @@ export default async function HistorialPage() {
                         {fechaFormateada.charAt(0).toUpperCase() + fechaFormateada.slice(1)}
                     </p>
                 </div>
-                <div className="px-5 py-2.5 bg-blue-50 text-blue-700 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest border border-blue-100 shadow-sm">
+                <div className="px-5 py-2.5 bg-blue-50 text-blue-700 rounded-2xl text-[10px] md:text-xs font-black uppercase tracking-widest border border-blue-100 shadow-sm animate-in fade-in slide-in-from-right-4">
                     {ventas?.length || 0} Movimientos hoy
                 </div>
             </div>
 
-            {/* TARJETAS DE TOTALES (KPIs Adaptables) */}
+            {/* TARJETAS DE TOTALES (KPIs) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-12">
 
                 {/* Tarjeta Efectivo */}
@@ -49,7 +53,7 @@ export default async function HistorialPage() {
                         <Wallet size={28} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Efectivo</p>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Efectivo en Caja</p>
                         <p className="text-2xl md:text-3xl font-black text-gray-900 tabular-nums">
                             ${totalEfectivo.toLocaleString()}
                         </p>
@@ -62,7 +66,7 @@ export default async function HistorialPage() {
                         <ArrowRightLeft size={28} />
                     </div>
                     <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Transferencias</p>
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Bancos / Nequi</p>
                         <p className="text-2xl md:text-3xl font-black text-gray-900 tabular-nums">
                             ${totalTransferencia.toLocaleString()}
                         </p>
@@ -91,8 +95,9 @@ export default async function HistorialPage() {
                         <Receipt className="text-blue-500" size={24} />
                         Movimientos Recientes
                     </h2>
-                    <div className="flex items-center gap-2 text-xs font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
-                        Actualizado en tiempo real
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full uppercase tracking-wider">
+                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                        En Vivo
                     </div>
                 </div>
 
@@ -120,7 +125,7 @@ export default async function HistorialPage() {
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {ventas.map((venta) => (
-                                    <tr key={venta.id} className="hover:bg-blue-50/30 transition-all group">
+                                    <tr key={venta.id} className="hover:bg-blue-50/30 transition-all group animate-in slide-in-from-bottom-2 duration-300">
                                         <td className="p-6 text-sm font-bold text-gray-400 tabular-nums">
                                             {new Date(venta.creado_en).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </td>

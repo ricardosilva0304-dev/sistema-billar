@@ -1,16 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Clock, Coffee, Skull, Receipt, CheckCircle2, AlertCircle, Play, Zap, Search, Plus, Minus, Info, ChevronUp, ChevronDown, X } from 'lucide-react'
-import { abrirMesa, agregarConsumoMesa, procesarCierreMesa, terminarChico } from '@/app/actions/mesas'
+import { useRouter } from 'next/navigation' // Necesario para el tiempo real
+import { createClient } from '@supabase/supabase-js' // Cliente ligero para suscripción
+import { Clock, Coffee, Skull, Receipt, CheckCircle2, AlertCircle, Play, Zap, Search, Plus, Minus, Info, ChevronUp, ChevronDown, X, Trash2 } from 'lucide-react'
+import { abrirMesa, agregarConsumoMesa, procesarCierreMesa, terminarChico, cancelarMesa } from '@/app/actions/mesas'
+
+// Cliente Supabase solo para escuchar cambios en tiempo real
+const supabaseClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tarifas: any[], productos: any[] }) {
+    const router = useRouter()
     const [mounted, setMounted] = useState(false)
 
-    useEffect(() => {
-        setMounted(true)
-    }, [])
-
+    // --- ESTADOS ---
     const [minutosChicoActual, setMinutosChicoActual] = useState(0)
     const [modalAbierto, setModalAbierto] = useState<string | null>(null)
     const [metodoPago, setMetodoPago] = useState<'efectivo' | 'transferencia'>('efectivo')
@@ -25,10 +31,33 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
     const [metodoPagoChico, setMetodoPagoChico] = useState('efectivo')
     const [chicoSeleccionado, setChicoSeleccionado] = useState<any>(null)
 
+    // Datos calculados
     const tarifa = tarifas.find(t => t.tipo_mesa === mesa.tipo_mesa)
     const productosFiltrados = productos.filter(p => p.nombre.toLowerCase().includes(busquedaProd.toLowerCase()))
     const totalPedidoActual = carritoPedido.reduce((acc, item) => acc + (item.precio * item.cantidad), 0)
 
+    // 1. TIEMPO REAL: Suscripción a cambios en esta mesa
+    useEffect(() => {
+        setMounted(true)
+
+        // Suscribirse a cambios en la tabla 'mesas' para este ID específico
+        const channel = supabaseClient
+            .channel(`mesa-${mesa.id}`)
+            .on('postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'mesas', filter: `id=eq.${mesa.id}` },
+                () => {
+                    // Si algo cambia en la DB, refrescamos la vista automáticamente
+                    router.refresh()
+                }
+            )
+            .subscribe()
+
+        return () => {
+            supabaseClient.removeChannel(channel)
+        }
+    }, [mesa.id, router])
+
+    // 2. CRONÓMETRO CLIENTE
     useEffect(() => {
         if (mesa.estado === 'ocupada' && mesa.hora_ultimo_chico) {
             const calcularTiempo = () => {
@@ -36,11 +65,14 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                 setMinutosChicoActual(Math.floor(diff / 60000))
             }
             calcularTiempo()
-            const int = setInterval(calcularTiempo, 60000)
+            const int = setInterval(calcularTiempo, 60000) // Actualizar cada minuto
             return () => clearInterval(int)
+        } else {
+            setMinutosChicoActual(0)
         }
     }, [mesa])
 
+    // --- CÁLCULOS MATEMÁTICOS ---
     const calcularCostoTiempo = (minutos: number) => {
         if (!tarifa) return 0
         if (mesa.modalidad === 'chicos') return 0
@@ -61,6 +93,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
     const totalChicosPendientes = chicosPendientes.reduce((acc: number, c: any) => acc + c.total, 0)
     const GRAN_TOTAL_CIERRE = totalChicosPendientes + totalChicoActual
 
+    // --- HANDLERS ---
     const agregarAlCarrito = (producto: any) => {
         setCarritoPedido(prev => {
             const existe = prev.find(p => p.id === producto.id)
@@ -108,6 +141,13 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         setModalAbierto(null)
     }
 
+    // NUEVO: Handler para cancelar mesa
+    const handleCancelarMesa = async () => {
+        await cancelarMesa(mesa.id)
+        setModalAbierto(null)
+    }
+
+    // Evitar renderizado servidor/cliente diferente
     if (!mounted) {
         return (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 h-64 flex items-center justify-center">
@@ -116,13 +156,15 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         )
     }
 
+    // --- VISTA: MESA DISPONIBLE ---
     if (mesa.estado === 'disponible') {
         return (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full">
-                <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-all duration-300 flex flex-col h-full group">
+                <div className="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 group-hover:bg-blue-50/30 transition-colors">
                     <div>
-                        <h3 className="text-xl md:text-2xl font-black text-gray-800">Mesa {mesa.numero}</h3>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{mesa.tipo_mesa}</span>
+                        <h3 className="text-lg md:text-xl font-black text-gray-800">
+                            Mesa {mesa.numero} <span className="text-gray-500 font-bold text-sm">- {mesa.tipo_mesa}</span>
+                        </h3>
                     </div>
                     <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse"></div>
                 </div>
@@ -144,12 +186,15 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         )
     }
 
+    // --- VISTA: MESA OCUPADA ---
     return (
         <div className="bg-white rounded-2xl shadow-lg border border-orange-100 relative overflow-hidden flex flex-col h-full ring-1 ring-orange-500/20">
+            {/* Barra de progreso visual */}
             <div className="absolute top-0 left-0 w-full h-1 bg-gray-100">
                 <div className="h-full bg-orange-500 animate-[progress_2s_ease-in-out_infinite] w-full origin-left"></div>
             </div>
 
+            {/* HEADER MESA */}
             <div className="p-4 flex justify-between items-start bg-orange-50/30">
                 <div>
                     <h3 className="text-lg md:text-xl font-black text-gray-800">Mesa {mesa.numero}</h3>
@@ -158,12 +203,23 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                         {Math.floor(minutosChicoActual / 60)}:{String(minutosChicoActual % 60).padStart(2, '0')}
                     </div>
                 </div>
-                <div className="text-right">
-                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total</p>
-                    <p className="text-lg md:text-xl font-black text-gray-900">${GRAN_TOTAL_CIERRE.toLocaleString()}</p>
+                <div className="flex flex-col items-end gap-1">
+                    <div className="text-right">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Total</p>
+                        <p className="text-lg md:text-xl font-black text-gray-900">${GRAN_TOTAL_CIERRE.toLocaleString()}</p>
+                    </div>
+                    {/* BOTÓN DE CANCELAR (PÁNICO) */}
+                    <button
+                        onClick={() => setModalAbierto('cancelar')}
+                        className="text-[10px] text-red-300 hover:text-red-500 flex items-center gap-1 font-bold bg-white/50 px-2 py-0.5 rounded-full transition-colors"
+                        title="Cancelar mesa por error"
+                    >
+                        <Trash2 size={10} /> Cancelar
+                    </button>
                 </div>
             </div>
 
+            {/* CHICOS PENDIENTES */}
             {chicosPendientes.length > 0 && (
                 <div className="px-4 py-2 bg-red-50 border-y border-red-100">
                     <p className="text-[9px] font-bold text-red-400 uppercase mb-1">Por Cobrar ({chicosPendientes.length})</p>
@@ -177,6 +233,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                 </div>
             )}
 
+            {/* CONSUMOS ACTUALES */}
             <div className="flex-1 px-4 py-3 overflow-y-auto max-h-48 md:max-h-60 scrollbar-thin scrollbar-thumb-gray-200">
                 <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">En curso</p>
                 {consumosActuales.length === 0 ? (
@@ -198,6 +255,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                 )}
             </div>
 
+            {/* BOTONES ACCIÓN */}
             <div className="p-3 bg-white border-t border-gray-100 grid grid-cols-2 gap-2">
                 <button onClick={() => { setModalAbierto('consumo'); setCarritoPedido([]); setBusquedaProd(''); setBilleteP('') }} className="flex flex-col items-center justify-center py-2.5 bg-gray-50 border border-gray-200 rounded-xl hover:border-blue-500 hover:text-blue-600 transition-all group active:scale-95">
                     <Coffee size={18} className="text-gray-400 group-hover:text-blue-500 mb-1" />
@@ -214,6 +272,27 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                 </div>
             </div>
 
+            {/* ================= MODAL DE CANCELACIÓN (NUEVO) ================= */}
+            {modalAbierto === 'cancelar' && (
+                <div className="fixed inset-0 bg-black/80 z-[70] flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white p-6 rounded-3xl w-full max-w-xs shadow-2xl text-center">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Trash2 size={32} className="text-red-500" />
+                        </div>
+                        <h3 className="text-xl font-black text-gray-900 mb-2">¿Cancelar Mesa?</h3>
+                        <p className="text-sm text-gray-500 mb-6">Esto reiniciará la mesa como si nunca se hubiera abierto. No quedará registro.</p>
+
+                        <div className="flex gap-3">
+                            <button onClick={() => setModalAbierto(null)} className="flex-1 py-3 text-gray-500 font-bold bg-gray-100 rounded-xl">Volver</button>
+                            <button onClick={handleCancelarMesa} className="flex-1 bg-red-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-200">Sí, Cancelar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ... RESTO DE MODALES (Pedido, Chico, Cierre, Detalle) ... */}
+            {/* ... (Mantén el resto del código de los modales 'consumo', 'terminar_chico', 'cierre' y 'chicoSeleccionado' exactamente igual que tenías) ... */}
+            {/* (Para ahorrar espacio, asumo que los tienes, si necesitas que los copie completos avísame) */}
             {/* MODAL: NUEVO PEDIDO (RESPONSIVE) */}
             {modalAbierto === 'consumo' && (
                 <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-0 md:p-4 animate-in fade-in duration-200">
@@ -356,7 +435,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                                 <label className="text-[10px] font-black text-gray-400 uppercase mb-3 block text-center">Método de Pago</label>
                                 <div className="flex gap-2 mb-4">
                                     <button onClick={() => setMetodoPago('efectivo')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all border ${metodoPago === 'efectivo' ? 'bg-white border-emerald-500 text-emerald-700 shadow-sm' : 'bg-transparent border-transparent text-gray-400'}`}>💵 Efectivo</button>
-                                    <button onClick={() => setMetodoPago('transferencia')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all border ${metodoPago === 'transferencia' ? 'bg-white border-purple-500 text-purple-700 shadow-sm' : 'bg-transparent border-transparent text-gray-400'}`}>📱 Transf.</button>
+                                    <button onClick={() => setMetodoPago('transferencia')} className={`flex-1 py-3 text-sm font-bold rounded-xl transition-all border ${metodoPago === 'transferencia' ? 'bg-white border-purple-500 text-purple-700 shadow-sm' : 'bg-transparent border-transparent text-gray-400'}`}>📱 Transferencia</button>
                                 </div>
                                 {metodoPago === 'efectivo' && (
                                     <div className="bg-white border border-gray-100 rounded-xl p-3 flex justify-between items-center">
