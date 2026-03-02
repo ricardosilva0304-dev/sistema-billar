@@ -9,7 +9,7 @@ import { logout } from '@/app/actions/auth'
 const menuItems = [
     { nombre: 'Mesas', icono: Monitor, ruta: '/dashboard' },
     { nombre: 'Inventario', icono: Package, ruta: '/dashboard/inventario' },
-    { nombre: 'Historial', icono: Clock, ruta: '/dashboard/historial' },
+    { nombre: 'Cierre de Caja', icono: Clock, ruta: '/dashboard/historial' },
     { nombre: 'Configuración', icono: Settings, ruta: '/dashboard/configuracion' },
 ]
 
