@@ -106,9 +106,15 @@ export async function procesarCierreMesa(mesaId: string, descripcionTicket: stri
         metodo_pago: metodoPago
     }])
 
-    // Limpiar mesa
+    // Limpiar mesa (Aquí cambié modality por modalidad)
     await supabase.from('mesas').update({
-        estado: 'disponible', hora_inicio: null, hora_ultimo_chico: null, modality: null, minutos_prepago: 0, chicos: [], consumos: []
+        estado: 'disponible',
+        hora_inicio: null,
+        hora_ultimo_chico: null,
+        modalidad: null,
+        minutos_prepago: 0,
+        chicos: [],
+        consumos: []
     }).eq('id', mesaId)
 
     revalidatePath('/dashboard')

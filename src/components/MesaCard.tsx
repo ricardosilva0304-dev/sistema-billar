@@ -2,15 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation' // Necesario para el tiempo real
-import { createClient } from '@supabase/supabase-js' // Cliente ligero para suscripción
 import { Clock, Coffee, Skull, Receipt, CheckCircle2, AlertCircle, Play, Zap, Search, Plus, Minus, Info, ChevronUp, ChevronDown, X, Trash2 } from 'lucide-react'
 import { abrirMesa, agregarConsumoMesa, procesarCierreMesa, terminarChico, cancelarMesa } from '@/app/actions/mesas'
-
-// Cliente Supabase solo para escuchar cambios en tiempo real
-const supabaseClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase'
 
 export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tarifas: any[], productos: any[] }) {
     const router = useRouter()
@@ -41,7 +35,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         setMounted(true)
 
         // Suscribirse a cambios en la tabla 'mesas' para este ID específico
-        const channel = supabaseClient
+        const channel = supabase
             .channel(`mesa-${mesa.id}`)
             .on('postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'mesas', filter: `id=eq.${mesa.id}` },
@@ -53,7 +47,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
             .subscribe()
 
         return () => {
-            supabaseClient.removeChannel(channel)
+            supabase.removeChannel(channel)
         }
     }, [mesa.id, router])
 
@@ -197,7 +191,10 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
             {/* HEADER MESA */}
             <div className="p-4 flex justify-between items-start bg-orange-50/30">
                 <div>
-                    <h3 className="text-lg md:text-xl font-black text-gray-800">Mesa {mesa.numero}</h3>
+                    {/* AQUÍ AGREGAMOS EL TIPO DE MESA */}
+                    <h3 className="text-lg md:text-xl font-black text-gray-800">
+                        Mesa {mesa.numero} <span className="text-gray-500 font-bold text-sm">- {mesa.tipo_mesa}</span>
+                    </h3>
                     <div className="flex items-center gap-1 text-orange-600 font-mono text-base md:text-lg font-bold">
                         <Clock size={16} className="animate-pulse" />
                         {Math.floor(minutosChicoActual / 60)}:{String(minutosChicoActual % 60).padStart(2, '0')}

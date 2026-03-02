@@ -2,15 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation' // Para refrescar los datos
-import { createClient } from '@supabase/supabase-js' // Cliente Realtime
 import { ShoppingCart, Plus, Minus, Trash2, Edit2, PackageSearch, Store, BookUser, Receipt, CheckCircle2, Search, X } from 'lucide-react'
 import { crearProducto, editarProducto, eliminarProducto, procesarVenta, crearCuentaAbierta, cobrarCuentaAbierta } from '@/app/actions/inventario'
-
-// Cliente Supabase Ligero
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { supabase } from '@/lib/supabase'
 
 export default function InventarioClient({ productosIniciales, cuentasIniciales }: { productosIniciales: any[], cuentasIniciales: any[] }) {
     const router = useRouter() // Hook para actualizar la data visualmente
