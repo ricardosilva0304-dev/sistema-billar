@@ -1,10 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Clock, Coffee, Skull, Receipt, CheckCircle2, AlertCircle, Play, Zap, Search, Plus, Minus, Trash2, Info } from 'lucide-react'
+import { Clock, Coffee, Skull, Receipt, CheckCircle2, AlertCircle, Play, Zap, Search, Plus, Minus, Info, ChevronUp, ChevronDown } from 'lucide-react'
+// AQUÍ ESTABA EL ERROR, YA LO QUITÉ 👇
 import { abrirMesa, agregarConsumoMesa, procesarCierreMesa, terminarChico } from '@/app/actions/mesas'
 
 export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tarifas: any[], productos: any[] }) {
+    // 1. AGREGA ESTO AL PRINCIPIO:
+    const [mounted, setMounted] = useState(false)
+
+    // 2. AGREGA ESTE EFFECT INMEDIATAMENTE DESPUÉS:
+    useEffect(() => {
+        setMounted(true)
+    }, [])
     const [minutosChicoActual, setMinutosChicoActual] = useState(0)
     const [modalAbierto, setModalAbierto] = useState<string | null>(null)
 
@@ -17,7 +25,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
     const [busquedaProd, setBusquedaProd] = useState('')
     const [estadoPagoP, setEstadoPagoP] = useState<'pendiente' | 'pagado'>('pendiente')
     const [metodoPagoP, setMetodoPagoP] = useState('efectivo')
-    const [billeteP, setBilleteP] = useState<number | ''>('') // Billete para el pedido instantáneo
+    const [billeteP, setBilleteP] = useState<number | ''>('')
 
     // --- ESTADOS TERMINAR CHICO ---
     const [perdedor, setPerdedor] = useState('')
@@ -70,7 +78,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         setCarritoPedido(prev => {
             const existe = prev.find(p => p.id === producto.id)
             if (existe) {
-                if (existe.cantidad >= producto.stock) return prev // Validación básica de stock visual
+                if (existe.cantidad >= producto.stock) return prev
                 return prev.map(p => p.id === producto.id ? { ...p, cantidad: p.cantidad + 1 } : p)
             }
             return [...prev, { ...producto, cantidad: 1 }]
@@ -97,27 +105,13 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         e.preventDefault()
         if (carritoPedido.length === 0) return
 
-        // Enviamos cada ítem del carrito al servidor
-        // Nota: Idealmente esto sería una sola llamada bulk, pero para mantener compatibilidad usamos un loop
         for (const item of carritoPedido) {
             await agregarConsumoMesa(
-                mesa.id,
-                item.id,
-                item.nombre,
-                item.cantidad,
-                item.precio,
-                estadoPagoP,
-                metodoPagoP,
-                mesa.consumos || []
+                mesa.id, item.id, item.nombre, item.cantidad, item.precio, estadoPagoP, metodoPagoP, mesa.consumos || []
             )
         }
 
-        // Limpiar estados
-        setModalAbierto(null)
-        setCarritoPedido([])
-        setBusquedaProd('')
-        setEstadoPagoP('pendiente')
-        setBilleteP('')
+        setModalAbierto(null); setCarritoPedido([]); setBusquedaProd(''); setEstadoPagoP('pendiente'); setBilleteP('')
     }
 
     const handleTerminarChico = async () => {
@@ -132,9 +126,15 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         setModalAbierto(null)
     }
 
-    // ==========================================================
     // VISTA: MESA DISPONIBLE
-    // ==========================================================
+    if (!mounted) {
+        return (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 h-full p-6 flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        )
+    }
+
     if (mesa.estado === 'disponible') {
         return (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-xl transition-shadow duration-300 flex flex-col h-full">
@@ -152,9 +152,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
         )
     }
 
-    // ==========================================================
     // VISTA: MESA OCUPADA
-    // ==========================================================
     return (
         <div className="bg-white rounded-2xl shadow-lg border border-orange-100 relative overflow-hidden flex flex-col h-full ring-1 ring-orange-500/20">
             <div className="absolute top-0 left-0 w-full h-1 bg-gray-100"><div className="h-full bg-orange-500 animate-[progress_2s_ease-in-out_infinite] w-full origin-left"></div></div>
@@ -292,10 +290,7 @@ export default function MesaCard({ mesa, tarifas, productos }: { mesa: any, tari
                 </div>
             )}
 
-            {/* ... Mantén los Modales de Terminar Chico y Cierre de Mesa (iguales a la versión anterior) ... */}
-            {/* (Si se borraron al copiar, por favor copia y pega las secciones de "modalAbierto === 'terminar_chico'" y "'cierre'" de la respuesta anterior) */}
-
-            {/* === MODAL: TERMINAR CHICO (CON CÁLCULO AUTOMÁTICO) === */}
+            {/* === MODAL: TERMINAR CHICO === */}
             {modalAbierto === 'terminar_chico' && (
                 <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
                     <div className="bg-white p-6 rounded-2xl w-full max-w-sm shadow-2xl">
